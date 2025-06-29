@@ -45,9 +45,11 @@ namespace ShadowArmory
         private Dictionary<OrbDirection, Collider> orbTriggers = new Dictionary<OrbDirection, Collider>();
         
         // Orbital motion settings
-        private float orbitRadius = 1.5f;
-        private float orbitSpeed = 60f; // degrees per second
-        private float weaponDistanceFromOrb = 0.8f;
+        [SerializeField] private float orbitRadius = 1.5f;
+        [SerializeField] private float orbitSpeed = 60f; // degrees per second
+        [SerializeField] private float weaponDistanceFromOrb = 0.8f;
+        [SerializeField] private float orbDistanceFromPlayer = 1.5f;
+        [SerializeField] private float orbHeightOffset = 1.5f;
 
         // Active coroutines
         private Coroutine spinCoroutine = null;
@@ -71,21 +73,19 @@ namespace ShadowArmory
 
         private void SetupOrbs()
         {
-            // Create orb GameObjects positioned around the player
+            // Create orbs positioned around the player at shoulder height
             Vector3 playerPosition = creature.transform.position;
-            Vector3 playerForward = creature.transform.forward;
-            Vector3 playerRight = creature.transform.right;
-            Vector3 playerUp = creature.transform.up;
+            Vector3 shoulderPosition = playerPosition + Vector3.up * orbHeightOffset;
 
-            // Create orbs at fixed positions relative to player
-            CreateOrb(OrbDirection.Up, playerPosition + playerUp * 2f);
-            CreateOrb(OrbDirection.Down, playerPosition - playerUp * 1f);
-            CreateOrb(OrbDirection.Left, playerPosition - playerRight * 2f);
-            CreateOrb(OrbDirection.Right, playerPosition + playerRight * 2f);
-            CreateOrb(OrbDirection.Forward, playerPosition + playerForward * 2f);
-            CreateOrb(OrbDirection.Backward, playerPosition - playerForward * 2f);
+            // Create orbs in a circle around the player at shoulder level
+            CreateOrb(OrbDirection.Up, shoulderPosition + Vector3.up * 1f);
+            CreateOrb(OrbDirection.Down, shoulderPosition + Vector3.down * 0.5f);
+            CreateOrb(OrbDirection.Left, shoulderPosition + creature.transform.TransformDirection(-orbDistanceFromPlayer, 0, 0));
+            CreateOrb(OrbDirection.Right, shoulderPosition + creature.transform.TransformDirection(orbDistanceFromPlayer, 0, 0));
+            CreateOrb(OrbDirection.Forward, shoulderPosition + creature.transform.TransformDirection(0, 0, orbDistanceFromPlayer));
+            CreateOrb(OrbDirection.Backward, shoulderPosition + creature.transform.TransformDirection(0, 0, -orbDistanceFromPlayer));
 
-            Debug.Log($"[{currentDateTime}] {currentUser} - Created {orbs.Count} orbs");
+            Debug.Log($"[{currentDateTime}] {currentUser} - Created {orbs.Count} orbs around player");
         }
 
         private void CreateOrb(OrbDirection direction, Vector3 position)
@@ -179,14 +179,8 @@ namespace ShadowArmory
             weaponHolder.transform.localPosition = Vector3.forward * weaponDistanceFromOrb;
             weaponHolder.transform.localRotation = Quaternion.identity;
 
-            // Make weapon kinematic and position it
-            if (weapon.physicBody != null)
-            {
-                weapon.physicBody.isKinematic = true;
-                weapon.physicBody.useGravity = false;
-                weapon.physicBody.velocity = Vector3.zero;
-                weapon.physicBody.angularVelocity = Vector3.zero;
-            }
+            // Make weapon kinematic and handle all rigidbodies
+            ForceWeaponKinematic(weapon);
 
             // Create assignment
             WeaponAssignment assignment = new WeaponAssignment(weapon, direction, orb);
@@ -196,6 +190,41 @@ namespace ShadowArmory
             Debug.Log($"[{currentDateTime}] {currentUser} - Weapon {weapon.itemId} successfully assigned to {direction}");
         }
 
+        private void ForceWeaponKinematic(Item weapon)
+        {
+            if (weapon == null) return;
+
+            try
+            {
+                // Make sure the weapon's physics body is kinematic and has no velocity
+                if (weapon.physicBody != null)
+                {
+                    weapon.physicBody.isKinematic = true;
+                    weapon.physicBody.useGravity = false;
+                    weapon.physicBody.velocity = Vector3.zero;
+                    weapon.physicBody.angularVelocity = Vector3.zero;
+                    weapon.physicBody.WakeUp();
+                }
+
+                // Also handle any child rigidbodies to be extra safe
+                Rigidbody[] childRigidbodies = weapon.GetComponentsInChildren<Rigidbody>();
+                foreach (Rigidbody rb in childRigidbodies)
+                {
+                    if (rb != null && rb != weapon.physicBody)
+                    {
+                        rb.isKinematic = true;
+                        rb.useGravity = false;
+                        rb.velocity = Vector3.zero;
+                        rb.angularVelocity = Vector3.zero;
+                    }
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[{currentDateTime}] {currentUser} - Error forcing weapon kinematic: {e.Message}");
+            }
+        }
+
         private void StartSpinning()
         {
             if (spinCoroutine != null)
@@ -203,6 +232,39 @@ namespace ShadowArmory
                 StopCoroutine(spinCoroutine);
             }
             spinCoroutine = StartCoroutine(SpinAssignedWeapons());
+            
+            // Also start orb position updating
+            StartCoroutine(UpdateOrbPositions());
+        }
+
+        private IEnumerator UpdateOrbPositions()
+        {
+            Debug.Log($"[{currentDateTime}] {currentUser} - Started UpdateOrbPositions coroutine");
+
+            while (true)
+            {
+                if (creature != null)
+                {
+                    Vector3 playerPosition = creature.transform.position;
+                    Vector3 shoulderPosition = playerPosition + Vector3.up * orbHeightOffset;
+
+                    // Update orb positions to follow player
+                    if (orbs.ContainsKey(OrbDirection.Up))
+                        orbs[OrbDirection.Up].position = shoulderPosition + Vector3.up * 1f;
+                    if (orbs.ContainsKey(OrbDirection.Down))
+                        orbs[OrbDirection.Down].position = shoulderPosition + Vector3.down * 0.5f;
+                    if (orbs.ContainsKey(OrbDirection.Left))
+                        orbs[OrbDirection.Left].position = shoulderPosition + creature.transform.TransformDirection(-orbDistanceFromPlayer, 0, 0);
+                    if (orbs.ContainsKey(OrbDirection.Right))
+                        orbs[OrbDirection.Right].position = shoulderPosition + creature.transform.TransformDirection(orbDistanceFromPlayer, 0, 0);
+                    if (orbs.ContainsKey(OrbDirection.Forward))
+                        orbs[OrbDirection.Forward].position = shoulderPosition + creature.transform.TransformDirection(0, 0, orbDistanceFromPlayer);
+                    if (orbs.ContainsKey(OrbDirection.Backward))
+                        orbs[OrbDirection.Backward].position = shoulderPosition + creature.transform.TransformDirection(0, 0, -orbDistanceFromPlayer);
+                }
+
+                yield return new WaitForSeconds(0.1f); // Update 10 times per second
+            }
         }
 
         private IEnumerator SpinAssignedWeapons()
@@ -211,6 +273,8 @@ namespace ShadowArmory
 
             while (true)
             {
+                float deltaTime = Time.deltaTime;
+
                 for (int i = assignedWeapons.Count - 1; i >= 0; i--)
                 {
                     WeaponAssignment assignment = assignedWeapons[i];
@@ -218,11 +282,15 @@ namespace ShadowArmory
                     // Clean up invalid assignments
                     if (assignment.weapon == null || assignment.orb == null || assignment.weaponHolder == null)
                     {
-                        if (assignment.weaponHolder != null)
-                        {
-                            Destroy(assignment.weaponHolder);
-                        }
-                        assignedWeapons.RemoveAt(i);
+                        CleanupAssignment(assignment, i);
+                        continue;
+                    }
+
+                    // Check if weapon was grabbed by player - release it
+                    if (assignment.weapon.IsHanded())
+                    {
+                        Debug.Log($"[{currentDateTime}] {currentUser} - Weapon {assignment.weapon.itemId} was grabbed, releasing from orb");
+                        ReleaseWeaponFromOrb(assignment, i);
                         continue;
                     }
 
@@ -238,20 +306,70 @@ namespace ShadowArmory
                         Mathf.Sin(angleRad) * weaponDistanceFromOrb
                     );
 
-                    // Update weapon holder position
+                    // Update weapon holder position and rotation
                     assignment.weaponHolder.transform.localPosition = offset;
                     assignment.weaponHolder.transform.localRotation = Quaternion.LookRotation(offset.normalized);
 
                     // Update weapon position to match holder
-                    if (assignment.weapon.physicBody != null)
+                    try
                     {
                         assignment.weapon.transform.position = assignment.weaponHolder.transform.position;
                         assignment.weapon.transform.rotation = assignment.weaponHolder.transform.rotation;
+
+                        // Ensure weapon stays kinematic
+                        if (assignment.weapon.physicBody != null)
+                        {
+                            assignment.weapon.physicBody.WakeUp();
+                        }
+                    }
+                    catch (System.Exception e)
+                    {
+                        Debug.LogError($"[{currentDateTime}] {currentUser} - Error updating weapon position: {e.Message}");
                     }
                 }
 
                 yield return new WaitForFixedUpdate();
             }
+        }
+
+        private void CleanupAssignment(WeaponAssignment assignment, int index)
+        {
+            if (assignment.weaponHolder != null)
+            {
+                Destroy(assignment.weaponHolder);
+            }
+            assignedWeapons.RemoveAt(index);
+            Debug.Log($"[{currentDateTime}] {currentUser} - Cleaned up invalid weapon assignment at index {index}");
+        }
+
+        private void ReleaseWeaponFromOrb(WeaponAssignment assignment, int index)
+        {
+            // Restore weapon physics
+            if (assignment.weapon != null && assignment.weapon.physicBody != null)
+            {
+                assignment.weapon.physicBody.isKinematic = false;
+                assignment.weapon.physicBody.useGravity = true;
+
+                // Also restore child rigidbodies
+                Rigidbody[] childRigidbodies = assignment.weapon.GetComponentsInChildren<Rigidbody>();
+                foreach (Rigidbody rb in childRigidbodies)
+                {
+                    if (rb != null && rb != assignment.weapon.physicBody)
+                    {
+                        rb.isKinematic = false;
+                        rb.useGravity = true;
+                    }
+                }
+            }
+
+            // Clean up holder
+            if (assignment.weaponHolder != null)
+            {
+                Destroy(assignment.weaponHolder);
+            }
+
+            assignedWeapons.RemoveAt(index);
+            Debug.Log($"[{currentDateTime}] {currentUser} - Released weapon {assignment.weapon?.itemId} from {assignment.direction} orb");
         }
 
         private bool IsWeaponAssigned(Item weapon)
@@ -278,19 +396,32 @@ namespace ShadowArmory
         {
             Debug.Log($"[{currentDateTime}] {currentUser} - SkillOrbModule being destroyed");
 
+            // Stop all coroutines
             if (spinCoroutine != null)
             {
                 StopCoroutine(spinCoroutine);
                 spinCoroutine = null;
             }
+            StopAllCoroutines();
 
-            // Clean up assigned weapons
+            // Clean up assigned weapons - restore their physics
             foreach (var assignment in assignedWeapons)
             {
                 if (assignment.weapon != null && assignment.weapon.physicBody != null)
                 {
                     assignment.weapon.physicBody.isKinematic = false;
                     assignment.weapon.physicBody.useGravity = true;
+
+                    // Also restore child rigidbodies
+                    Rigidbody[] childRigidbodies = assignment.weapon.GetComponentsInChildren<Rigidbody>();
+                    foreach (Rigidbody rb in childRigidbodies)
+                    {
+                        if (rb != null && rb != assignment.weapon.physicBody)
+                        {
+                            rb.isKinematic = false;
+                            rb.useGravity = true;
+                        }
+                    }
                 }
 
                 if (assignment.weaponHolder != null)
