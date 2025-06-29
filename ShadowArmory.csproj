@@ -136,6 +136,7 @@
     <Compile Include="SkillOrbModule.cs" />
     <Compile Include="SkillOrbModuleTest.cs" />
     <Compile Include="SkillOrbExample.cs" />
+    <Compile Include="ProblemStatementValidation.cs" />
     <Compile Include="Util.cs" />
   </ItemGroup>
   <ItemGroup>
