@@ -130,6 +130,9 @@
     <Compile Include="Skill Behaviors\ShadowStepBehavior.cs" />
     <Compile Include="Skill Loaders\SkillPiece.cs" />
     <Compile Include="Skill Behaviors\SkillPieceBehavior.cs" />
+    <Compile Include="Skill Behaviors\DirectionTrigger.cs" />
+    <Compile Include="Skill Behaviors\SkillOrbModule.cs" />
+    <Compile Include="Skill Loaders\SkillOrbSkill.cs" />
     <Compile Include="Skill Loaders\StrongerThrowsLoader.cs" />
     <Compile Include="Skill Loaders\WariorsStrength.cs" />
     <Compile Include="Skill Behaviors\WarriorsStrengthBehavior.cs" />
