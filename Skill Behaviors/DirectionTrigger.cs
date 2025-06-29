@@ -27,7 +27,7 @@ namespace ShadowArmory
             // Setup the trigger collider
             SetupTriggerCollider();
 
-            Debug.Log($"[{currentDateTime}] {currentUser} - DirectionTrigger initialized for direction: {direction}");
+            SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - DirectionTrigger initialized for direction: {direction}");
         }
 
         private void SetupTriggerCollider()
@@ -41,38 +41,51 @@ namespace ShadowArmory
 
             // Configure as trigger
             triggerCollider.isTrigger = true;
-            triggerCollider.radius = orbRadius;
+            triggerCollider.radius = SkillOrbConfig.OrbRadius;
 
-            Debug.Log($"[{currentDateTime}] {currentUser} - Trigger collider setup complete for {direction} orb - radius: {orbRadius}");
+            SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - Trigger collider setup complete for {direction} orb - radius: {SkillOrbConfig.OrbRadius}");
         }
 
         private void OnTriggerEnter(Collider other)
         {
-            Debug.Log($"[{currentDateTime}] {currentUser} - OnTriggerEnter called! Direction: {direction}, Collider: {other.name}");
+            SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - OnTriggerEnter called! Direction: {direction}, Collider: {other.name}");
 
             // Check if the colliding object is a weapon
             Item item = other.GetComponentInParent<Item>();
             if (item == null)
             {
-                Debug.Log($"[{currentDateTime}] {currentUser} - No Item component found on {other.name}");
+                SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - No Item component found on {other.name}");
                 return;
             }
 
             // Check if it's actually a weapon
             if (!IsWeapon(item))
             {
-                Debug.Log($"[{currentDateTime}] {currentUser} - Item {item.itemId} is not a weapon, ignoring");
+                SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - Item {item.itemId} is not a weapon, ignoring");
                 return;
             }
 
             // Check if weapon is currently held (shouldn't assign held weapons)
             if (item.IsHanded())
             {
-                Debug.Log($"[{currentDateTime}] {currentUser} - Weapon {item.itemId} is currently held, ignoring");
+                SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - Weapon {item.itemId} is currently held, ignoring");
                 return;
             }
 
-            Debug.Log($"[{currentDateTime}] {currentUser} - WEAPON COLLISION DETECTED! Weapon: {item.itemId}, Direction: {direction}");
+            SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - WEAPON COLLISION DETECTED! Weapon: {item.itemId}, Direction: {direction}");
+
+            // Provide haptic feedback if enabled
+            if (SkillOrbConfig.EnableCollisionFeedback)
+            {
+                // Try to find the player's hands for haptic feedback
+                if (Player.local?.hands != null)
+                {
+                    foreach (RagdollHand hand in Player.local.hands)
+                    {
+                        hand?.HapticTick(0.5f);
+                    }
+                }
+            }
 
             // Notify parent module about the weapon collision
             if (parentModule != null)
@@ -113,7 +126,7 @@ namespace ShadowArmory
 
         private void OnDestroy()
         {
-            Debug.Log($"[{currentDateTime}] {currentUser} - DirectionTrigger for {direction} being destroyed");
+            SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - DirectionTrigger for {direction} being destroyed");
         }
 
         // Enum definition (should match the one used throughout the codebase)

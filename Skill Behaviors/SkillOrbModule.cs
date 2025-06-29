@@ -2,6 +2,7 @@ using ThunderRoad;
 using UnityEngine;
 using System.Collections.Generic;
 using System.Collections;
+using System.Linq;
 
 namespace ShadowArmory
 {
@@ -15,10 +16,10 @@ namespace ShadowArmory
         private readonly string currentDateTime = "2025-06-29 03:30:38";
 
         [Header("Orb Configuration")]
-        public float orbDistance = 0.8f;          // Distance from center to orbs
-        public float orbRadius = 0.15f;           // Size of each orb
-        public float orbitSpeed = 30f;            // Speed of weapon orbiting
-        public float orbitRadius = 0.2f;          // Radius of weapon orbit around orb
+        public float orbDistance = 0.8f;          // Distance from center to orbs (will be overridden by config)
+        public float orbRadius = 0.15f;           // Size of each orb (will be overridden by config)
+        public float orbitSpeed = 30f;            // Speed of weapon orbiting (will be overridden by config)
+        public float orbitRadius = 0.2f;          // Radius of weapon orbit around orb (will be overridden by config)
 
         // Direction orbs and assigned weapons
         private Dictionary<DirectionTrigger.WeaponDirection, GameObject> directionOrbs;
@@ -40,7 +41,7 @@ namespace ShadowArmory
         {
             base.OnItemLoaded(item);
 
-            Debug.Log($"[{currentDateTime}] {currentUser} - SkillOrbModule loaded for item: {item.itemId}");
+            SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - SkillOrbModule loaded for item: {item.itemId}");
 
             // Initialize collections
             directionOrbs = new Dictionary<DirectionTrigger.WeaponDirection, GameObject>();
@@ -59,7 +60,7 @@ namespace ShadowArmory
 
         private void CreateDirectionOrbs()
         {
-            Debug.Log($"[{currentDateTime}] {currentUser} - Creating direction orbs");
+            SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - Creating direction orbs");
 
             // Create orbs for each direction
             DirectionTrigger.WeaponDirection[] directions = {
@@ -76,12 +77,12 @@ namespace ShadowArmory
                 CreateDirectionOrb(direction);
             }
 
-            Debug.Log($"[{currentDateTime}] {currentUser} - Created {directionOrbs.Count} direction orbs");
+            SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - Created {directionOrbs.Count} direction orbs");
         }
 
         private void CreateDirectionOrb(DirectionTrigger.WeaponDirection direction)
         {
-            // Calculate position based on direction
+            // Calculate position based on direction (use config values)
             Vector3 orbPosition = GetOrbPosition(direction);
 
             // Create orb GameObject
@@ -93,13 +94,16 @@ namespace ShadowArmory
             DirectionTrigger trigger = orbObject.AddComponent<DirectionTrigger>();
             trigger.Initialize(this, direction);
 
-            // Create visual representation
-            CreateOrbVisual(orbObject, direction);
+            // Create visual representation if enabled
+            if (SkillOrbConfig.ShowOrbVisuals)
+            {
+                CreateOrbVisual(orbObject, direction);
+            }
 
             // Store reference
             directionOrbs[direction] = orbObject;
 
-            Debug.Log($"[{currentDateTime}] {currentUser} - Created orb for direction {direction} at position {orbPosition}");
+            SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - Created orb for direction {direction} at position {orbPosition}");
         }
 
         private void CreateOrbVisual(GameObject orbObject, DirectionTrigger.WeaponDirection direction)
@@ -109,7 +113,7 @@ namespace ShadowArmory
             visualSphere.name = $"OrbVisual_{direction}";
             visualSphere.transform.SetParent(orbObject.transform);
             visualSphere.transform.localPosition = Vector3.zero;
-            visualSphere.transform.localScale = Vector3.one * (orbRadius * 2);
+            visualSphere.transform.localScale = Vector3.one * (SkillOrbConfig.OrbRadius * 2);
 
             // Remove the default collider (we use DirectionTrigger's collider)
             Collider defaultCollider = visualSphere.GetComponent<Collider>();
@@ -134,7 +138,7 @@ namespace ShadowArmory
                 material.renderQueue = 3000;
                 
                 Color color = material.color;
-                color.a = 0.3f; // Semi-transparent
+                color.a = SkillOrbConfig.OrbTransparency; // Use config transparency
                 material.color = color;
                 
                 renderer.material = material;
@@ -145,20 +149,22 @@ namespace ShadowArmory
 
         private Vector3 GetOrbPosition(DirectionTrigger.WeaponDirection direction)
         {
+            float distance = SkillOrbConfig.OrbDistance; // Use config value
+            
             switch (direction)
             {
                 case DirectionTrigger.WeaponDirection.Up:
-                    return Vector3.up * orbDistance;
+                    return Vector3.up * distance;
                 case DirectionTrigger.WeaponDirection.Down:
-                    return Vector3.down * orbDistance;
+                    return Vector3.down * distance;
                 case DirectionTrigger.WeaponDirection.Left:
-                    return Vector3.left * orbDistance;
+                    return Vector3.left * distance;
                 case DirectionTrigger.WeaponDirection.Right:
-                    return Vector3.right * orbDistance;
+                    return Vector3.right * distance;
                 case DirectionTrigger.WeaponDirection.Forward:
-                    return Vector3.forward * orbDistance;
+                    return Vector3.forward * distance;
                 case DirectionTrigger.WeaponDirection.Backward:
-                    return Vector3.back * orbDistance;
+                    return Vector3.back * distance;
                 default:
                     return Vector3.zero;
             }
@@ -190,13 +196,13 @@ namespace ShadowArmory
         /// </summary>
         public void OnWeaponCollision(Item weapon, DirectionTrigger.WeaponDirection direction)
         {
-            Debug.Log($"[{currentDateTime}] {currentUser} - OnWeaponCollision: Weapon {weapon.itemId} hit {direction} orb");
+            SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - OnWeaponCollision: Weapon {weapon.itemId} hit {direction} orb");
 
             // Check if weapon is already assigned to a direction
             if (weaponToDirection.ContainsKey(weapon))
             {
                 DirectionTrigger.WeaponDirection oldDirection = weaponToDirection[weapon];
-                Debug.Log($"[{currentDateTime}] {currentUser} - Weapon {weapon.itemId} was assigned to {oldDirection}, reassigning to {direction}");
+                SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - Weapon {weapon.itemId} was assigned to {oldDirection}, reassigning to {direction}");
                 
                 // Remove from old assignment
                 UnassignWeapon(weapon);
@@ -206,7 +212,7 @@ namespace ShadowArmory
             if (assignedWeapons.ContainsKey(direction))
             {
                 Item oldWeapon = assignedWeapons[direction];
-                Debug.Log($"[{currentDateTime}] {currentUser} - Direction {direction} already has weapon {oldWeapon.itemId}, replacing");
+                SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - Direction {direction} already has weapon {oldWeapon.itemId}, replacing");
                 
                 // Remove old weapon assignment
                 UnassignWeapon(oldWeapon);
@@ -216,22 +222,69 @@ namespace ShadowArmory
             AssignWeapon(weapon, direction);
         }
 
+        /// <summary>
+        /// Manually retrieve a weapon from a specific direction
+        /// </summary>
+        public Item RetrieveWeapon(DirectionTrigger.WeaponDirection direction)
+        {
+            if (assignedWeapons.ContainsKey(direction))
+            {
+                Item weapon = assignedWeapons[direction];
+                SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - Manually retrieving weapon {weapon.itemId} from {direction} orb");
+                
+                // Unassign the weapon (this will restore its physics)
+                UnassignWeapon(weapon);
+                
+                return weapon;
+            }
+            
+            return null;
+        }
+
+        /// <summary>
+        /// Get all currently assigned weapons
+        /// </summary>
+        public Dictionary<DirectionTrigger.WeaponDirection, Item> GetAssignedWeapons()
+        {
+            return new Dictionary<DirectionTrigger.WeaponDirection, Item>(assignedWeapons);
+        }
+
+        /// <summary>
+        /// Event handler for when a weapon is grabbed - automatically unassigns it
+        /// </summary>
+        private void OnWeaponGrabbed(RagdollHand ragdollHand, Handle handle, EventTime eventTime)
+        {
+            // Find which weapon was grabbed and unassign it
+            Item grabbedWeapon = handle?.item;
+            if (grabbedWeapon != null && weaponToDirection.ContainsKey(grabbedWeapon))
+            {
+                SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - Weapon {grabbedWeapon.itemId} was grabbed, auto-unassigning");
+                UnassignWeapon(grabbedWeapon);
+            }
+        }
+
         private void AssignWeapon(Item weapon, DirectionTrigger.WeaponDirection direction)
         {
-            Debug.Log($"[{currentDateTime}] {currentUser} - Assigning weapon {weapon.itemId} to direction {direction}");
+            SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - Assigning weapon {weapon.itemId} to direction {direction}");
 
             // Store assignments
             assignedWeapons[direction] = weapon;
             weaponToDirection[weapon] = direction;
 
-            // Initialize orbital motion for this weapon
-            weaponOrbitAngles[weapon] = Random.Range(0f, 360f); // Random starting angle
-            weaponOrbitOffsets[weapon] = Random.insideUnitSphere * 0.05f; // Small random offset
+            // Subscribe to weapon grab events to auto-unassign when grabbed
+            weapon.OnGrabEvent += OnWeaponGrabbed;
 
-            // Make weapon kinematic for orbital control
-            SetupWeaponForOrbiting(weapon);
+            // Initialize orbital motion for this weapon only if enabled
+            if (SkillOrbConfig.EnableOrbitalMotion)
+            {
+                weaponOrbitAngles[weapon] = Random.Range(0f, 360f); // Random starting angle
+                weaponOrbitOffsets[weapon] = Random.insideUnitSphere * 0.05f; // Small random offset
 
-            Debug.Log($"[{currentDateTime}] {currentUser} - Weapon {weapon.itemId} successfully assigned to {direction} orb");
+                // Make weapon kinematic for orbital control
+                SetupWeaponForOrbiting(weapon);
+            }
+
+            SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - Weapon {weapon.itemId} successfully assigned to {direction} orb");
         }
 
         private void UnassignWeapon(Item weapon)
@@ -239,7 +292,10 @@ namespace ShadowArmory
             if (!weaponToDirection.ContainsKey(weapon)) return;
 
             DirectionTrigger.WeaponDirection direction = weaponToDirection[weapon];
-            Debug.Log($"[{currentDateTime}] {currentUser} - Unassigning weapon {weapon.itemId} from direction {direction}");
+            SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - Unassigning weapon {weapon.itemId} from direction {direction}");
+
+            // Unsubscribe from events
+            weapon.OnGrabEvent -= OnWeaponGrabbed;
 
             // Remove from assignments
             assignedWeapons.Remove(direction);
@@ -276,7 +332,7 @@ namespace ShadowArmory
                     }
                 }
 
-                Debug.Log($"[{currentDateTime}] {currentUser} - Weapon {weapon.itemId} physics setup for orbiting");
+                SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - Weapon {weapon.itemId} physics setup for orbiting");
             }
             catch (System.Exception e)
             {
@@ -305,7 +361,7 @@ namespace ShadowArmory
                     }
                 }
 
-                Debug.Log($"[{currentDateTime}] {currentUser} - Weapon {weapon.itemId} physics restored");
+                SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - Weapon {weapon.itemId} physics restored");
             }
             catch (System.Exception e)
             {
@@ -321,22 +377,26 @@ namespace ShadowArmory
             }
 
             orbitalMotionCoroutine = item.StartCoroutine(OrbitalMotionUpdate());
-            Debug.Log($"[{currentDateTime}] {currentUser} - Orbital motion system started");
+            SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - Orbital motion system started");
         }
 
         private IEnumerator OrbitalMotionUpdate()
         {
             while (true)
             {
-                // Update position of each assigned weapon
-                foreach (var kvp in assignedWeapons)
+                // Only update if orbital motion is enabled
+                if (SkillOrbConfig.EnableOrbitalMotion)
                 {
-                    DirectionTrigger.WeaponDirection direction = kvp.Key;
-                    Item weapon = kvp.Value;
-
-                    if (weapon != null && directionOrbs.ContainsKey(direction))
+                    // Update position of each assigned weapon
+                    foreach (var kvp in assignedWeapons)
                     {
-                        UpdateWeaponOrbitalPosition(weapon, direction);
+                        DirectionTrigger.WeaponDirection direction = kvp.Key;
+                        Item weapon = kvp.Value;
+
+                        if (weapon != null && directionOrbs.ContainsKey(direction))
+                        {
+                            UpdateWeaponOrbitalPosition(weapon, direction);
+                        }
                     }
                 }
 
@@ -355,17 +415,18 @@ namespace ShadowArmory
                 GameObject orb = directionOrbs[direction];
                 Vector3 orbCenter = orb.transform.position;
 
-                // Update orbit angle
+                // Update orbit angle using config speed
                 float currentAngle = weaponOrbitAngles[weapon];
-                currentAngle += orbitSpeed * Time.deltaTime;
+                currentAngle += SkillOrbConfig.OrbitSpeed * Time.deltaTime;
                 weaponOrbitAngles[weapon] = currentAngle % 360f;
 
-                // Calculate orbital position
+                // Calculate orbital position using config radius
                 float radians = currentAngle * Mathf.Deg2Rad;
+                float radius = SkillOrbConfig.OrbitRadius;
                 Vector3 orbitOffset = new Vector3(
-                    Mathf.Cos(radians) * orbitRadius,
-                    Mathf.Sin(radians) * orbitRadius * 0.5f, // Flatter orbit
-                    Mathf.Sin(radians * 2f) * orbitRadius * 0.3f // Figure-8 motion
+                    Mathf.Cos(radians) * radius,
+                    Mathf.Sin(radians) * radius * 0.5f, // Flatter orbit
+                    Mathf.Sin(radians * 2f) * radius * 0.3f // Figure-8 motion
                 );
 
                 // Add small random offset for variety
@@ -376,7 +437,7 @@ namespace ShadowArmory
                 weapon.transform.position = Vector3.Lerp(weapon.transform.position, targetPosition, Time.deltaTime * 5f);
 
                 // Add slight rotation for visual appeal
-                weapon.transform.Rotate(Vector3.up, orbitSpeed * 0.5f * Time.deltaTime);
+                weapon.transform.Rotate(Vector3.up, SkillOrbConfig.OrbitSpeed * 0.5f * Time.deltaTime);
             }
             catch (System.Exception e)
             {
@@ -386,7 +447,7 @@ namespace ShadowArmory
 
         public override void OnItemDespawn(EventTime eventTime)
         {
-            Debug.Log($"[{currentDateTime}] {currentUser} - SkillOrbModule despawning");
+            SkillOrbConfig.DebugLog($"[{currentDateTime}] {currentUser} - SkillOrbModule despawning");
 
             // Stop orbital motion
             if (orbitalMotionCoroutine != null)
