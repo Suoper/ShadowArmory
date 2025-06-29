@@ -133,6 +133,9 @@
     <Compile Include="Skill Loaders\StrongerThrowsLoader.cs" />
     <Compile Include="Skill Loaders\WariorsStrength.cs" />
     <Compile Include="Skill Behaviors\WarriorsStrengthBehavior.cs" />
+    <Compile Include="SkillOrbModule.cs" />
+    <Compile Include="SkillOrbModuleTest.cs" />
+    <Compile Include="SkillOrbExample.cs" />
     <Compile Include="Util.cs" />
   </ItemGroup>
   <ItemGroup>
