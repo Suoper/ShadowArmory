@@ -44,12 +44,11 @@ namespace ShadowArmory
         private List<WeaponAssignment> assignedWeapons = new List<WeaponAssignment>();
         private Dictionary<OrbDirection, Collider> orbTriggers = new Dictionary<OrbDirection, Collider>();
         
-        // Orbital motion settings
-        [SerializeField] private float orbitRadius = 1.5f;
-        [SerializeField] private float orbitSpeed = 60f; // degrees per second
-        [SerializeField] private float weaponDistanceFromOrb = 0.8f;
-        [SerializeField] private float orbDistanceFromPlayer = 1.5f;
-        [SerializeField] private float orbHeightOffset = 1.5f;
+        // Orbital motion settings - now configurable
+        private float orbitSpeed => SkillOrbConfig.OrbitSpeed;
+        private float weaponDistanceFromOrb => SkillOrbConfig.WeaponDistanceFromOrb;
+        private float orbDistanceFromPlayer => SkillOrbConfig.OrbDistanceFromPlayer;
+        private float orbHeightOffset => SkillOrbConfig.OrbHeightOffset;
 
         // Active coroutines
         private Coroutine spinCoroutine = null;
@@ -65,6 +64,13 @@ namespace ShadowArmory
             }
 
             Debug.Log($"[{currentDateTime}] {currentUser} - Initializing SkillOrbModule for {creature.name}");
+            
+            // Run validation checks
+            if (SkillOrbConfig.EnableDebugLogs)
+            {
+                SkillOrbValidation.ValidateConfiguration();
+                SkillOrbValidation.ValidateOrbDirectionsEnum();
+            }
             
             SetupOrbs();
             SetupTriggers();
@@ -98,14 +104,14 @@ namespace ShadowArmory
             GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             sphere.transform.SetParent(orbObj.transform);
             sphere.transform.localPosition = Vector3.zero;
-            sphere.transform.localScale = Vector3.one * 0.3f;
+            sphere.transform.localScale = Vector3.one * SkillOrbConfig.OrbScale;
 
             // Make orb slightly transparent
             Renderer renderer = sphere.GetComponent<Renderer>();
             if (renderer != null)
             {
                 Material material = new Material(Shader.Find("Standard"));
-                material.color = new Color(0.5f, 0.8f, 1f, 0.6f);
+                material.color = SkillOrbConfig.OrbColor;
                 material.SetFloat("_Mode", 3); // Transparent mode
                 material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
                 material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
@@ -130,7 +136,7 @@ namespace ShadowArmory
                 // Add trigger collider to orb
                 SphereCollider triggerCollider = orb.gameObject.AddComponent<SphereCollider>();
                 triggerCollider.isTrigger = true;
-                triggerCollider.radius = 1.2f; // Larger than visual sphere for easier detection
+                triggerCollider.radius = SkillOrbConfig.TriggerRadius;
 
                 // Add OrbTriggerHandler component
                 OrbTriggerHandler triggerHandler = orb.gameObject.AddComponent<OrbTriggerHandler>();
@@ -138,7 +144,10 @@ namespace ShadowArmory
 
                 orbTriggers[direction] = triggerCollider;
 
-                Debug.Log($"[{currentDateTime}] {currentUser} - Setup trigger for {direction} orb");
+                if (SkillOrbConfig.EnableDebugLogs)
+                {
+                    Debug.Log($"[{currentDateTime}] {currentUser} - Setup trigger for {direction} orb with radius {SkillOrbConfig.TriggerRadius}");
+                }
             }
         }
 
@@ -233,15 +242,21 @@ namespace ShadowArmory
             }
             spinCoroutine = StartCoroutine(SpinAssignedWeapons());
             
-            // Also start orb position updating
-            StartCoroutine(UpdateOrbPositions());
+            // Start orb position updating if enabled
+            if (SkillOrbConfig.EnableDynamicOrbPositioning)
+            {
+                StartCoroutine(UpdateOrbPositions());
+            }
         }
 
         private IEnumerator UpdateOrbPositions()
         {
-            Debug.Log($"[{currentDateTime}] {currentUser} - Started UpdateOrbPositions coroutine");
+            if (SkillOrbConfig.EnableDebugLogs)
+            {
+                Debug.Log($"[{currentDateTime}] {currentUser} - Started UpdateOrbPositions coroutine");
+            }
 
-            while (true)
+            while (SkillOrbConfig.EnableDynamicOrbPositioning)
             {
                 if (creature != null)
                 {
@@ -263,7 +278,7 @@ namespace ShadowArmory
                         orbs[OrbDirection.Backward].position = shoulderPosition + creature.transform.TransformDirection(0, 0, -orbDistanceFromPlayer);
                 }
 
-                yield return new WaitForSeconds(0.1f); // Update 10 times per second
+                yield return new WaitForSeconds(SkillOrbConfig.OrbUpdateInterval);
             }
         }
 
@@ -287,9 +302,12 @@ namespace ShadowArmory
                     }
 
                     // Check if weapon was grabbed by player - release it
-                    if (assignment.weapon.IsHanded())
+                    if (SkillOrbConfig.EnableAutoWeaponRelease && assignment.weapon.IsHanded())
                     {
-                        Debug.Log($"[{currentDateTime}] {currentUser} - Weapon {assignment.weapon.itemId} was grabbed, releasing from orb");
+                        if (SkillOrbConfig.EnableDebugLogs)
+                        {
+                            Debug.Log($"[{currentDateTime}] {currentUser} - Weapon {assignment.weapon.itemId} was grabbed, releasing from orb");
+                        }
                         ReleaseWeaponFromOrb(assignment, i);
                         continue;
                     }
@@ -465,7 +483,10 @@ namespace ShadowArmory
             Item weapon = other.GetComponentInParent<Item>();
             if (weapon != null && orbModule != null)
             {
-                Debug.Log($"Weapon {weapon.itemId} touched {direction} orb");
+                if (SkillOrbConfig.EnableDebugLogs)
+                {
+                    Debug.Log($"Weapon {weapon.itemId} touched {direction} orb");
+                }
                 orbModule.OnWeaponTouchOrb(weapon, direction);
             }
         }
